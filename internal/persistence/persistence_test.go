@@ -252,7 +252,7 @@ func TestToSaveDataCapturesState(t *testing.T) {
 	m.MutationStates[0].PurchaseCount = 3
 	m.HarvesterStates[0].Owned = 2
 
-	sd := persistence.ToSaveData(m)
+	sd := model.ToSaveData(m)
 
 	if sd.Version != persistence.CurrentVersion {
 		t.Errorf("version: got %d, want %d", sd.Version, persistence.CurrentVersion)
@@ -284,7 +284,7 @@ func TestToGameModelRestoresAmounts(t *testing.T) {
 		MutationStates:  nil,
 		HarvesterStates: nil,
 	}
-	m := persistence.ToGameModel(sd)
+	m := model.FromSaveData(sd)
 	if m.Ledger.Amounts[0] != 10 {
 		t.Errorf("Amounts[0]: got %v, want 10", m.Ledger.Amounts[0])
 	}
@@ -304,7 +304,7 @@ func TestToGameModelRestoresMutations(t *testing.T) {
 			{PurchaseCount: 2},
 		},
 	}
-	m := persistence.ToGameModel(sd)
+	m := model.FromSaveData(sd)
 	if m.MutationStates[0].PurchaseCount != 5 {
 		t.Errorf("MutationStates[0].PurchaseCount: got %v, want 5", m.MutationStates[0].PurchaseCount)
 	}
@@ -321,7 +321,7 @@ func TestToGameModelRestoresHarvesters(t *testing.T) {
 			{Owned: 1},
 		},
 	}
-	m := persistence.ToGameModel(sd)
+	m := model.FromSaveData(sd)
 	if m.HarvesterStates[0].Owned != 4 {
 		t.Errorf("HarvesterStates[0].Owned: got %v, want 4", m.HarvesterStates[0].Owned)
 	}
@@ -336,7 +336,7 @@ func TestToGameModelRestoresZones(t *testing.T) {
 		MutationStates:  nil,
 		HarvesterStates: nil,
 	}
-	m := persistence.ToGameModel(sd)
+	m := model.FromSaveData(sd)
 	if !m.ZoneUnlocked[0] {
 		t.Error("ZoneUnlocked[0]: expected true")
 	}
@@ -359,7 +359,7 @@ func TestToGameModelBoundsCheckMutations(t *testing.T) {
 		MutationStates: many,
 	}
 	// Should not panic
-	_ = persistence.ToGameModel(sd)
+	_ = model.FromSaveData(sd)
 }
 
 func TestToGameModelBoundsCheckHarvesters(t *testing.T) {
@@ -373,7 +373,7 @@ func TestToGameModelBoundsCheckHarvesters(t *testing.T) {
 		HarvesterStates: many,
 	}
 	// Should not panic
-	_ = persistence.ToGameModel(sd)
+	_ = model.FromSaveData(sd)
 }
 
 func TestCurrentVersionIsOne(t *testing.T) {

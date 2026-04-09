@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/lucasldab/tuiclicker/internal/balance"
-	"github.com/lucasldab/tuiclicker/internal/model"
 )
 
 // CurrentVersion is the save file schema version. Increment when SaveData
@@ -140,52 +139,3 @@ func ApplyOfflineProgress(sd *SaveData, now time.Time) {
 	}
 }
 
-// ToSaveData converts a GameModel to a SaveData snapshot.
-// Sets Version and SavedAt automatically.
-func ToSaveData(m model.GameModel) SaveData {
-	sd := SaveData{
-		Version:      CurrentVersion,
-		SavedAt:      time.Now(),
-		Ledger:       LedgerData{Amounts: m.Ledger.Amounts, Rates: m.Ledger.Rates},
-		ZoneUnlocked: m.ZoneUnlocked,
-	}
-
-	sd.MutationStates = make([]MutationStateData, len(m.MutationStates))
-	for i, s := range m.MutationStates {
-		sd.MutationStates[i] = MutationStateData{PurchaseCount: s.PurchaseCount}
-	}
-
-	sd.HarvesterStates = make([]HarvesterStateData, len(m.HarvesterStates))
-	for i, s := range m.HarvesterStates {
-		sd.HarvesterStates[i] = HarvesterStateData{Owned: s.Owned}
-	}
-
-	return sd
-}
-
-// ToGameModel reconstructs a GameModel from a SaveData snapshot.
-// Calls model.New() first to populate all defaults (including unexported fields),
-// then overwrites the serializable fields from sd.
-// Ends with RecalcAllRates to fix up rates from restored harvester/mutation state.
-func ToGameModel(sd SaveData) model.GameModel {
-	m := model.New() // establishes defaults for all unexported fields
-
-	m.Ledger.Amounts = sd.Ledger.Amounts
-	m.Ledger.Rates = sd.Ledger.Rates
-	m.ZoneUnlocked = sd.ZoneUnlocked
-
-	for i, s := range sd.MutationStates {
-		if i < len(m.MutationStates) {
-			m.MutationStates[i].PurchaseCount = s.PurchaseCount
-		}
-	}
-	for i, s := range sd.HarvesterStates {
-		if i < len(m.HarvesterStates) {
-			m.HarvesterStates[i].Owned = s.Owned
-		}
-	}
-
-	// Recompute rates from restored harvester/mutation state.
-	m.Ledger = model.RecalcAllRates(m)
-	return m
-}

@@ -156,7 +156,7 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Rebuild rates from scratch (Pitfall 1)
 		m.Ledger = RecalcAllRates(m)
-		return m, doTick()
+		return m, tea.Batch(doTick(), saveCmd(m))
 
 	case clearFlashMsg:
 		m.flashZone = ZoneNone
@@ -168,6 +168,12 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case clearHarvesterFlashMsg:
 		m.flashHarvesterIdx = -1
+		return m, nil
+
+	case SaveResultMsg:
+		// Silent: save errors do not affect game state.
+		// Errors are intentionally swallowed here; stderr logging omitted
+		// to keep the TUI clean.
 		return m, nil
 	}
 
