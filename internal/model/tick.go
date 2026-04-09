@@ -24,3 +24,9 @@ type clearFlashMsg struct{}
 
 // ClearFlashMsg returns a clearFlashMsg for test injection.
 func ClearFlashMsg() tea.Msg { return clearFlashMsg{} }
+
+// clearMutationFlashMsg clears the mutation purchase flash on the next render.
+type clearMutationFlashMsg struct{}
+
+// clearHarvesterFlashMsg clears the harvester purchase flash on the next render.
+type clearHarvesterFlashMsg struct{}
