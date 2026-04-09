@@ -156,24 +156,38 @@ func resourceStyle(z ZoneID) lipgloss.Style {
 
 // --- Creature Panel (center, ~40%) ---
 
-func renderCreaturePanel(_ GameView, w, h int) string {
+func renderCreaturePanel(v GameView, w, h int) string {
 	heading := StyleHeading.Render("THE ABERRATION")
 
-	// Phase 1 static placeholder — Phase 2 replaces with mutation-driven art.
-	// Rendered in dim (ANSI 8) to signal placeholder state per UI-SPEC.
-	placeholder := []string{
-		"    .  .  .",
-		"   ( o  o )",
-		"    >  --  <",
-		"   /|      |\\",
-		"  * |      | *",
+	artStr := GetCreatureArt(v.CreatureTier, v.DominantBranch)
+
+	var artStyle lipgloss.Style
+	if v.CreatureTier == 0 {
+		artStyle = StyleDim
+	} else {
+		switch v.DominantBranch {
+		case 0:
+			artStyle = StyleBlood
+		case 1:
+			artStyle = StyleFlesh
+		case 2:
+			artStyle = StyleBones
+		default:
+			artStyle = StyleDim
+		}
 	}
-	art := StyleDim.Render(strings.Join(placeholder, "\n"))
+
+	art := artStyle.Render(artStr)
+
+	tierLabel := tierName(v.CreatureTier)
+	label := StyleHeading.Render(tierLabel)
 
 	content := lipgloss.JoinVertical(lipgloss.Center,
 		heading,
 		"",
 		art,
+		"",
+		label,
 	)
 
 	return lipgloss.NewStyle().
@@ -181,6 +195,19 @@ func renderCreaturePanel(_ GameView, w, h int) string {
 		Height(h).
 		AlignHorizontal(lipgloss.Center).
 		Render(content)
+}
+
+func tierName(tier int) string {
+	switch tier {
+	case 1:
+		return "NASCENT FORM"
+	case 2:
+		return "GROTESQUE"
+	case 3:
+		return "ABOMINATION"
+	default:
+		return "ABERRANT SEED"
+	}
 }
 
 // --- Zone Panel (right, ~30%) ---
