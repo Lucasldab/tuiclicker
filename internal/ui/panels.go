@@ -34,6 +34,27 @@ type ResourceView struct {
 	ZoneID ZoneID // which zone this resource maps to (for color selection)
 }
 
+// MutationView carries display data for one mutation in the mutations panel.
+// All computation (affordability, cost string) done in toGameView() — View() is pure.
+type MutationView struct {
+	Name        string // body horror mutation name
+	Description string // 1-line flavor text
+	CostString  string // formatted: "100 blood" or "50 blood / 25 flesh"
+	OwnedCount  int    // times purchased
+	CanAfford   bool   // true if player has enough of all required resources
+	BranchColor ZoneID // ZoneBlood / ZoneFlesh / ZoneBones for color selection
+}
+
+// HarvesterView carries display data for one harvester in the harvesters panel.
+type HarvesterView struct {
+	Name        string
+	RateString  string // formatted: "+0.5/s each"
+	CostString  string // formatted cost string
+	OwnedCount  int
+	CanAfford   bool
+	BranchColor ZoneID
+}
+
 // GameView is the data-transfer type panels receive. No model dependency.
 type GameView struct {
 	Width        int
@@ -42,6 +63,18 @@ type GameView struct {
 	FlashZone    ZoneID
 	ZoneUnlocked [3]bool // index 0=blood, 1=flesh, 2=bones
 	Resources    [3]ResourceView
+
+	// Phase 2 additions:
+	Mutations       []MutationView
+	Harvesters      []HarvesterView
+	CreatureTier    int // 0–3
+	DominantBranch  int // 0=blood, 1=flesh, 2=bones
+	MutationScroll  int // top visible item index
+	HarvesterScroll int // top visible item index
+	MutationCursor  int // highlighted item index (-1 = none)
+	HarvesterCursor int // highlighted item index (-1 = none)
+	MutationFlash   int // index of mutation to flash (-1 = none)
+	HarvesterFlash  int // index of harvester to flash (-1 = none)
 }
 
 // --- Tab Bar ---

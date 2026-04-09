@@ -1,7 +1,10 @@
 package model
 
 import (
+	"fmt"
+
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/lucasldab/tuiclicker/internal/balance"
 	"github.com/lucasldab/tuiclicker/internal/ui"
 )
 
@@ -39,6 +42,24 @@ type GameModel struct {
 	// ZoneUnlocked tracks which zones accept clicks. Index 0 (blood) is always
 	// true. Flesh (1) and Bones (2) are unlocked by Phase 2 mutations.
 	ZoneUnlocked [3]bool
+
+	// Phase 2 — mutation data
+	MutationDefs   []MutationDef
+	MutationStates []MutationState
+
+	// Phase 2 — harvester data
+	HarvesterDefs   []HarvesterDef
+	HarvesterStates []HarvesterState
+
+	// Phase 2 — UI cursor and scroll state
+	MutationCursor  int
+	MutationScroll  int
+	HarvesterCursor int
+	HarvesterScroll int
+
+	// Phase 2 — purchase flash (one-render effect, -1 = no flash)
+	flashMutationIdx  int
+	flashHarvesterIdx int
 }
 
 // New returns a GameModel with safe defaults.
@@ -50,6 +71,17 @@ func New() GameModel {
 		height: 24,
 	}
 	m.ZoneUnlocked[ResourceBlood] = true // blood is always unlocked (D-02)
+
+	// Phase 2 initialization
+	m.MutationDefs = AllMutations
+	m.MutationStates = make([]MutationState, len(AllMutations))
+	m.HarvesterDefs = AllHarvesters
+	m.HarvesterStates = make([]HarvesterState, len(AllHarvesters))
+	m.MutationCursor = -1  // no cursor until user presses up/down
+	m.HarvesterCursor = -1
+	m.flashMutationIdx = -1
+	m.flashHarvesterIdx = -1
+
 	m = recalculateLayout(m)
 	return m
 }
@@ -101,18 +133,41 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Action == tea.MouseActionMotion {
 			return m, nil
 		}
-		if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
-			return handleClick(m, msg.X, msg.Y)
+		if msg.Action == tea.MouseActionPress {
+			switch msg.Button {
+			case tea.MouseButtonWheelUp:
+				m = handleScrollUp(m)
+				return m, nil
+			case tea.MouseButtonWheelDown:
+				m = handleScrollDown(m)
+				return m, nil
+			case tea.MouseButtonLeft:
+				return handleClick(m, msg.X, msg.Y)
+			}
 		}
 		return m, nil
 
 	case TickMsg:
-		// Phase 1: rates are all 0.0/s (no auto-harvesters).
-		// Phase 2: apply m.Ledger.Rates[*] increments here.
+		// Apply one second of harvester income (AUTO-03)
+		for i, def := range m.HarvesterDefs {
+			buff := BranchHarvesterBuff(m.MutationDefs, m.MutationStates, def.Branch)
+			rate := def.EffectiveRate(m.HarvesterStates[i], buff)
+			m.Ledger.Amounts[def.Resource] += rate
+		}
+		// Rebuild rates from scratch (Pitfall 1)
+		m.Ledger = RecalcAllRates(m)
 		return m, doTick()
 
 	case clearFlashMsg:
 		m.flashZone = ZoneNone
+		return m, nil
+
+	case clearMutationFlashMsg:
+		m.flashMutationIdx = -1
+		return m, nil
+
+	case clearHarvesterFlashMsg:
+		m.flashHarvesterIdx = -1
 		return m, nil
 	}
 
@@ -140,12 +195,40 @@ func (m GameModel) View() string {
 // This adapter prevents the ui package from importing internal/model
 // (which would create a circular import).
 func (m GameModel) toGameView() ui.GameView {
+	// Build mutations slice
+	mutations := make([]ui.MutationView, len(m.MutationDefs))
+	for i, def := range m.MutationDefs {
+		costs := def.CurrentCost(m.MutationStates[i])
+		mutations[i] = ui.MutationView{
+			Name:        def.Name,
+			Description: def.Description,
+			CostString:  FormatCosts(costs),
+			OwnedCount:  m.MutationStates[i].PurchaseCount,
+			CanAfford:   CanAfford(costs, m.Ledger),
+			BranchColor: ui.ZoneID(def.Branch + 1), // BranchBlood(0)+1=ZoneBlood(1), etc.
+		}
+	}
+
+	// Build harvesters slice
+	harvesters := make([]ui.HarvesterView, len(m.HarvesterDefs))
+	for i, def := range m.HarvesterDefs {
+		costs := def.CurrentCost(m.HarvesterStates[i])
+		harvesters[i] = ui.HarvesterView{
+			Name:        def.Name,
+			RateString:  fmt.Sprintf("+%.1f/s each", def.BaseRate),
+			CostString:  FormatCosts(costs),
+			OwnedCount:  m.HarvesterStates[i].Owned,
+			CanAfford:   CanAfford(costs, m.Ledger),
+			BranchColor: ui.ZoneID(def.Branch + 1), // BranchBlood(0)+1=ZoneBlood(1), etc.
+		}
+	}
+
 	return ui.GameView{
-		Width:        m.width,
-		Height:       m.height,
-		ActiveTab:    ui.TabID(m.ActiveTab),
-		FlashZone:    ui.ZoneID(m.flashZone),
-		ZoneUnlocked: m.ZoneUnlocked,
+		Width:           m.width,
+		Height:          m.height,
+		ActiveTab:       ui.TabID(m.ActiveTab),
+		FlashZone:       ui.ZoneID(m.flashZone),
+		ZoneUnlocked:    m.ZoneUnlocked,
 		Resources: [3]ui.ResourceView{
 			{
 				Label:  "BLOOD",
@@ -166,7 +249,58 @@ func (m GameModel) toGameView() ui.GameView {
 				ZoneID: ui.ZoneBones,
 			},
 		},
+		Mutations:       mutations,
+		Harvesters:      harvesters,
+		CreatureTier:    m.creatureTier(),
+		DominantBranch:  m.dominantBranch(),
+		MutationScroll:  m.MutationScroll,
+		HarvesterScroll: m.HarvesterScroll,
+		MutationCursor:  m.MutationCursor,
+		HarvesterCursor: m.HarvesterCursor,
+		MutationFlash:   m.flashMutationIdx,
+		HarvesterFlash:  m.flashHarvesterIdx,
 	}
+}
+
+// creatureTier returns the visual tier of the creature (0-3) based on
+// total mutations purchased.
+func (m GameModel) creatureTier() int {
+	total := m.totalMutationsPurchased()
+	switch {
+	case total == 0:
+		return 0
+	case total < balance.CreatureTier2Threshold:
+		return 1
+	case total < balance.CreatureTier3Threshold:
+		return 2
+	default:
+		return 3
+	}
+}
+
+// totalMutationsPurchased returns the sum of all mutation purchase counts.
+func (m GameModel) totalMutationsPurchased() int {
+	total := 0
+	for _, s := range m.MutationStates {
+		total += s.PurchaseCount
+	}
+	return total
+}
+
+// dominantBranch returns the index (0=blood, 1=flesh, 2=bones) of the branch
+// with the most total mutation purchases. Blood wins ties.
+func (m GameModel) dominantBranch() int {
+	counts := [3]int{}
+	for i, def := range m.MutationDefs {
+		counts[int(def.Branch)] += m.MutationStates[i].PurchaseCount
+	}
+	best := 0
+	for b := 1; b < 3; b++ {
+		if counts[b] > counts[best] {
+			best = b
+		}
+	}
+	return best
 }
 
 // handleKey processes keyboard input and returns the updated model + Cmd.
@@ -178,54 +312,217 @@ func handleKey(m GameModel, msg tea.KeyMsg) (GameModel, tea.Cmd) {
 	case "1":
 		m.ActiveTab = TabZones
 	case "2":
-		m.ActiveTab = TabMutations // no-op in Phase 1 (no content)
+		m.ActiveTab = TabMutations
 	case "3":
-		m.ActiveTab = TabHarvesters // no-op in Phase 1 (no content)
+		m.ActiveTab = TabHarvesters
 	case "b":
 		return harvestKey(m, ResourceBlood, ZoneBlood)
 	case "f":
 		return harvestKey(m, ResourceFlesh, ZoneFlesh)
 	case "n":
 		return harvestKey(m, ResourceBones, ZoneBones)
+	case "up", "k":
+		m = handleListUp(m)
+	case "down", "j":
+		m = handleListDown(m)
+	case "enter":
+		return handleListEnter(m)
 	}
 	return m, nil
 }
 
 // harvestKey attempts to harvest resource r via keybind. No-op if zone locked.
+// Applies BranchYieldMultiplier to scale the harvest amount.
 func harvestKey(m GameModel, r ResourceType, z ZoneType) (GameModel, tea.Cmd) {
 	if !m.ZoneUnlocked[r] {
 		return m, nil
 	}
-	m.Ledger.Add(r, 1.0)
+	branch := BranchID(r) // ResourceBlood=0=BranchBlood, ResourceFlesh=1=BranchFlesh, etc.
+	mult := BranchYieldMultiplier(m.MutationDefs, m.MutationStates, branch)
+	m.Ledger.Add(r, balance.HarvestYield*mult)
 	m.flashZone = z
 	return m, func() tea.Msg { return clearFlashMsg{} }
 }
 
-// handleClick routes a left-button click to the appropriate zone or tab.
+// handleListUp moves the cursor up in the active list (mutations or harvesters).
+// Clamps cursor to 0 minimum (T-02-08).
+func handleListUp(m GameModel) GameModel {
+	switch m.ActiveTab {
+	case TabMutations:
+		if m.MutationCursor < 0 {
+			// Initialize cursor to last visible item
+			m.MutationCursor = len(m.MutationDefs) - 1
+		} else if m.MutationCursor > 0 {
+			m.MutationCursor--
+		}
+		// Adjust scroll if cursor moved above visible window
+		if m.MutationCursor < m.MutationScroll {
+			m.MutationScroll = m.MutationCursor
+		}
+	case TabHarvesters:
+		if m.HarvesterCursor < 0 {
+			m.HarvesterCursor = len(m.HarvesterDefs) - 1
+		} else if m.HarvesterCursor > 0 {
+			m.HarvesterCursor--
+		}
+		if m.HarvesterCursor < m.HarvesterScroll {
+			m.HarvesterScroll = m.HarvesterCursor
+		}
+	}
+	return m
+}
+
+// handleListDown moves the cursor down in the active list (mutations or harvesters).
+// Clamps cursor to len-1 maximum (T-02-08).
+func handleListDown(m GameModel) GameModel {
+	switch m.ActiveTab {
+	case TabMutations:
+		if m.MutationCursor < 0 {
+			m.MutationCursor = 0
+		} else if m.MutationCursor < len(m.MutationDefs)-1 {
+			m.MutationCursor++
+		}
+	case TabHarvesters:
+		if m.HarvesterCursor < 0 {
+			m.HarvesterCursor = 0
+		} else if m.HarvesterCursor < len(m.HarvesterDefs)-1 {
+			m.HarvesterCursor++
+		}
+	}
+	return m
+}
+
+// handleListEnter attempts to purchase the item at the current cursor position.
+func handleListEnter(m GameModel) (GameModel, tea.Cmd) {
+	switch m.ActiveTab {
+	case TabMutations:
+		if m.MutationCursor >= 0 {
+			return tryPurchaseAndFlashMutation(m, m.MutationCursor)
+		}
+	case TabHarvesters:
+		if m.HarvesterCursor >= 0 {
+			return tryPurchaseAndFlashHarvester(m, m.HarvesterCursor)
+		}
+	}
+	return m, nil
+}
+
+// handleScrollUp scrolls the active list up by one item.
+func handleScrollUp(m GameModel) GameModel {
+	switch m.ActiveTab {
+	case TabMutations:
+		if m.MutationScroll > 0 {
+			m.MutationScroll--
+		}
+	case TabHarvesters:
+		if m.HarvesterScroll > 0 {
+			m.HarvesterScroll--
+		}
+	}
+	return m
+}
+
+// handleScrollDown scrolls the active list down by one item.
+func handleScrollDown(m GameModel) GameModel {
+	switch m.ActiveTab {
+	case TabMutations:
+		if m.MutationScroll < len(m.MutationDefs)-1 {
+			m.MutationScroll++
+		}
+	case TabHarvesters:
+		if m.HarvesterScroll < len(m.HarvesterDefs)-1 {
+			m.HarvesterScroll++
+		}
+	}
+	return m
+}
+
+// tryPurchaseAndFlashMutation attempts to purchase a mutation at idx.
+// On success: flashes the purchased item and rebuilds harvester rates
+// (mutation buffs affect harvester output).
+func tryPurchaseAndFlashMutation(m GameModel, idx int) (GameModel, tea.Cmd) {
+	updated, ok := TryPurchaseMutation(m, idx)
+	if !ok {
+		return m, nil
+	}
+	// Rebuild rates — mutation buffs may have changed (Pitfall 1)
+	updated.Ledger = RecalcAllRates(updated)
+	updated.flashMutationIdx = idx
+	return updated, func() tea.Msg { return clearMutationFlashMsg{} }
+}
+
+// tryPurchaseAndFlashHarvester attempts to purchase a harvester at idx.
+// On success: flashes the purchased item.
+func tryPurchaseAndFlashHarvester(m GameModel, idx int) (GameModel, tea.Cmd) {
+	updated, ok := TryPurchaseHarvester(m, idx)
+	if !ok {
+		return m, nil
+	}
+	updated.flashHarvesterIdx = idx
+	return updated, func() tea.Msg { return clearHarvesterFlashMsg{} }
+}
+
+// handleClick routes a left-button click to the appropriate zone, tab, or list item.
 func handleClick(m GameModel, x, y int) (GameModel, tea.Cmd) {
 	// Tab bar is at row 1.
 	if y == 1 {
 		m = handleTabClick(m, x)
 		return m, nil
 	}
-	// Zones panel hit-test.
+
+	// Mutations panel hit-test (when on mutations tab, right panel shows mutations)
+	if m.ActiveTab == TabMutations && x >= m.zonePanelLeft {
+		// Each item occupies itemRowHeight rows; content starts at contentStartRow.
+		const contentStartRow = 2
+		const itemRowHeight = 4
+		if y >= contentStartRow {
+			idx := (y-contentStartRow)/itemRowHeight + m.MutationScroll
+			// Bounds-check guard (T-02-07)
+			if idx >= 0 && idx < len(m.MutationDefs) {
+				return tryPurchaseAndFlashMutation(m, idx)
+			}
+		}
+		return m, nil
+	}
+
+	// Harvesters panel hit-test (when on harvesters tab, right panel shows harvesters)
+	if m.ActiveTab == TabHarvesters && x >= m.zonePanelLeft {
+		const contentStartRow = 2
+		const itemRowHeight = 4
+		if y >= contentStartRow {
+			idx := (y-contentStartRow)/itemRowHeight + m.HarvesterScroll
+			// Bounds-check guard (T-02-07)
+			if idx >= 0 && idx < len(m.HarvesterDefs) {
+				return tryPurchaseAndFlashHarvester(m, idx)
+			}
+		}
+		return m, nil
+	}
+
+	// Zones panel hit-test (zones tab or non-list-panel area)
 	if x >= m.zonePanelLeft && x < m.zonePanelRight {
 		switch {
 		case y >= m.zoneBloodTop && y < m.zoneBloodTop+ZoneBoxHeight:
 			if m.ZoneUnlocked[ResourceBlood] {
-				m.Ledger.Add(ResourceBlood, 1.0)
+				branch := BranchID(ResourceBlood)
+				mult := BranchYieldMultiplier(m.MutationDefs, m.MutationStates, branch)
+				m.Ledger.Add(ResourceBlood, balance.HarvestYield*mult)
 				m.flashZone = ZoneBlood
 				return m, func() tea.Msg { return clearFlashMsg{} }
 			}
 		case y >= m.zoneFleshTop && y < m.zoneFleshTop+ZoneBoxHeight:
 			if m.ZoneUnlocked[ResourceFlesh] {
-				m.Ledger.Add(ResourceFlesh, 1.0)
+				branch := BranchID(ResourceFlesh)
+				mult := BranchYieldMultiplier(m.MutationDefs, m.MutationStates, branch)
+				m.Ledger.Add(ResourceFlesh, balance.HarvestYield*mult)
 				m.flashZone = ZoneFlesh
 				return m, func() tea.Msg { return clearFlashMsg{} }
 			}
 		case y >= m.zoneBonesTop && y < m.zoneBonesTop+ZoneBoxHeight:
 			if m.ZoneUnlocked[ResourceBones] {
-				m.Ledger.Add(ResourceBones, 1.0)
+				branch := BranchID(ResourceBones)
+				mult := BranchYieldMultiplier(m.MutationDefs, m.MutationStates, branch)
+				m.Ledger.Add(ResourceBones, balance.HarvestYield*mult)
 				m.flashZone = ZoneBones
 				return m, func() tea.Msg { return clearFlashMsg{} }
 			}
