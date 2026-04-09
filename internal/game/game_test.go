@@ -128,8 +128,8 @@ func TestClickBloodZoneHarvests(t *testing.T) {
 	m := model.New()
 	// Blood zone: x within right panel, y = contentStartRow + BloodZoneOffset
 	// At 80-wide: rightW = (80*30)/100 = 24, zonePanelLeft = 80-24 = 56.
-	// Use x=60 (within [56,80)). zoneBloodTop = 3 + 0 = 3.
-	updated, cmd := m.Update(makeMouse(60, 3))
+	// Use x=60 (within [56,80)). zoneBloodTop = 2 + 2 = 4.
+	updated, cmd := m.Update(makeMouse(60, 4))
 	gm := updated.(model.GameModel)
 	if gm.Ledger.Amounts[model.ResourceBlood] != 1.0 {
 		t.Errorf("blood should be 1.0 after click, got %v", gm.Ledger.Amounts[model.ResourceBlood])
@@ -144,8 +144,8 @@ func TestClickBloodZoneHarvests(t *testing.T) {
 
 func TestClickFleshZoneLockedNoOp(t *testing.T) {
 	m := model.New()
-	// zoneFleshTop = 3 + 7 = 10. x=60 (within panel [56,80)).
-	updated, _ := m.Update(makeMouse(60, 10))
+	// zoneFleshTop = 2 + 9 = 11. x=60 (within panel [56,80)).
+	updated, _ := m.Update(makeMouse(60, 11))
 	gm := updated.(model.GameModel)
 	if gm.Ledger.Amounts[model.ResourceFlesh] != 0 {
 		t.Errorf("flesh should not increment when locked")
@@ -157,8 +157,8 @@ func TestClickFleshZoneLockedNoOp(t *testing.T) {
 
 func TestClickBonesZoneLockedNoOp(t *testing.T) {
 	m := model.New()
-	// zoneBonesTop = 3 + 14 = 17. x=60 (within panel [56,80)).
-	updated, _ := m.Update(makeMouse(60, 17))
+	// zoneBonesTop = 2 + 16 = 18. x=60 (within panel [56,80)).
+	updated, _ := m.Update(makeMouse(60, 18))
 	gm := updated.(model.GameModel)
 	if gm.Ledger.Amounts[model.ResourceBones] != 0 {
 		t.Errorf("bones should not increment when locked")
@@ -169,7 +169,7 @@ func TestClearFlashMsgResetsFlash(t *testing.T) {
 	m := model.New()
 	// Simulate a click that sets flash
 	m.Ledger.Add(model.ResourceBlood, 0) // no-op, just to use the var
-	updated1, _ := m.Update(makeMouse(60, 3))
+	updated1, _ := m.Update(makeMouse(60, 4))
 	gm1 := updated1.(model.GameModel)
 	if gm1.FlashZone() != model.ZoneBlood {
 		t.Skip("flash not set — check TestClickBloodZoneHarvests first")

@@ -146,6 +146,7 @@ func renderCreaturePanel(_ GameView, w, h int) string {
 	return lipgloss.NewStyle().
 		Width(w).
 		Height(h).
+		AlignHorizontal(lipgloss.Center).
 		Render(content)
 }
 

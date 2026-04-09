@@ -62,9 +62,9 @@ func recalculateLayout(m GameModel) GameModel {
 	m.zonePanelLeft = m.width - rightW
 	m.zonePanelRight = m.width
 
-	// Content area starts at row 3: row 0 is padding, row 1 is tab bar,
-	// row 2 is separator. Zone offsets are defined in zones.go as constants.
-	const contentStartRow = 3
+	// Content area starts at row 2: row 0 is tab bar, row 1 is separator.
+	// Zone offsets (defined in zones.go) include heading rows within the panel.
+	const contentStartRow = 2
 	m.zoneBloodTop = contentStartRow + BloodZoneOffset
 	m.zoneFleshTop = contentStartRow + FleshZoneOffset
 	m.zoneBonesTop = contentStartRow + BonesZoneOffset
