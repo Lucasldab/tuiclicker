@@ -65,3 +65,12 @@ const HarvTier2Rate = 2.0
 const CreatureTier1Threshold = 1 // 1-3 mutations: NASCENT FORM
 const CreatureTier2Threshold = 4 // 4-7 mutations: GROTESQUE
 const CreatureTier3Threshold = 8 // 8+  mutations: ABOMINATION
+
+// ---------------------------------------------------------------------------
+// Phase 3 constants — Persistence
+// ---------------------------------------------------------------------------
+
+// OfflineCapSeconds is the maximum offline time (in seconds) credited as
+// passive income on game load. 4 hours = 14400 seconds.
+// Used by persistence.ApplyOfflineProgress.
+const OfflineCapSeconds float64 = 4 * 3600
