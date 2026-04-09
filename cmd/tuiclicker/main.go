@@ -39,6 +39,14 @@ func loadOrNew() model.GameModel {
 		}
 		return model.New()
 	}
+	before := sd.Ledger.Amounts // snapshot before applying offline progress
 	persistence.ApplyOfflineProgress(&sd, time.Now())
-	return model.FromSaveData(sd)
+	delta := [3]float64{
+		sd.Ledger.Amounts[0] - before[0],
+		sd.Ledger.Amounts[1] - before[1],
+		sd.Ledger.Amounts[2] - before[2],
+	}
+	m := model.FromSaveData(sd)
+	m = model.WithOfflineMsg(m, model.FormatOfflineMsg(delta))
+	return m
 }

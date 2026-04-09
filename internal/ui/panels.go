@@ -75,6 +75,9 @@ type GameView struct {
 	HarvesterCursor int // highlighted item index (-1 = none)
 	MutationFlash   int // index of mutation to flash (-1 = none)
 	HarvesterFlash  int // index of harvester to flash (-1 = none)
+
+	// Phase 3 gap closure — offline credit notification
+	OfflineCreditMsg string // non-empty = show offline banner above status bar
 }
 
 // --- Tab Bar ---
@@ -643,6 +646,14 @@ func renderHarvesterPanel(v GameView, w, h int) string {
 		PaddingLeft(2).
 		PaddingRight(2).
 		Render(content)
+}
+
+// --- Offline Banner ---
+
+// renderOfflineBanner renders the offline credit notification line.
+// Uses StyleFlash (bold bright white) to ensure it stands out on launch.
+func renderOfflineBanner(msg string, width int) string {
+	return lipgloss.NewStyle().Width(width).Render(StyleFlash.Render(msg))
 }
 
 // --- Status Bar ---

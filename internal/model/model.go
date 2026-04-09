@@ -60,6 +60,10 @@ type GameModel struct {
 	// Phase 2 — purchase flash (one-render effect, -1 = no flash)
 	flashMutationIdx  int
 	flashHarvesterIdx int
+
+	// Phase 3 gap closure — offline credit notification
+	OfflineCreditMsg   string // non-empty on launch when idle credit > 0; shown in TUI banner
+	offlineCreditTicks int    // ticks remaining until auto-dismiss (unexported)
 }
 
 // New returns a GameModel with safe defaults.
@@ -156,6 +160,13 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Rebuild rates from scratch (Pitfall 1)
 		m.Ledger = RecalcAllRates(m)
+		// Auto-dismiss offline credit message after 5 ticks
+		if m.offlineCreditTicks > 0 {
+			m.offlineCreditTicks--
+			if m.offlineCreditTicks == 0 {
+				m.OfflineCreditMsg = ""
+			}
+		}
 		return m, tea.Batch(doTick(), saveCmd(m))
 
 	case clearFlashMsg:
@@ -263,8 +274,9 @@ func (m GameModel) toGameView() ui.GameView {
 		HarvesterScroll: m.HarvesterScroll,
 		MutationCursor:  m.MutationCursor,
 		HarvesterCursor: m.HarvesterCursor,
-		MutationFlash:   m.flashMutationIdx,
-		HarvesterFlash:  m.flashHarvesterIdx,
+		MutationFlash:    m.flashMutationIdx,
+		HarvesterFlash:   m.flashHarvesterIdx,
+		OfflineCreditMsg: m.OfflineCreditMsg,
 	}
 }
 

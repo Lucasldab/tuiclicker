@@ -52,11 +52,10 @@ func BuildLayout(v GameView) string {
 	separator := strings.Repeat("-", v.Width)
 	statusBar := renderStatusBar(v.Width)
 
-	return lipgloss.JoinVertical(lipgloss.Left,
-		tabBar,
-		separator,
-		body,
-		separator,
-		statusBar,
-	)
+	rows := []string{tabBar, separator, body, separator}
+	if v.OfflineCreditMsg != "" {
+		rows = append(rows, renderOfflineBanner(v.OfflineCreditMsg, v.Width))
+	}
+	rows = append(rows, statusBar)
+	return lipgloss.JoinVertical(lipgloss.Left, rows...)
 }

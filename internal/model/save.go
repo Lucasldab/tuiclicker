@@ -1,6 +1,8 @@
 package model
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/lucasldab/tuiclicker/internal/persistence"
@@ -53,5 +55,33 @@ func FromSaveData(sd persistence.SaveData) GameModel {
 
 	// Recompute rates from restored harvester/mutation state.
 	m.Ledger = RecalcAllRates(m)
+	return m
+}
+
+// FormatOfflineMsg builds the offline credit banner string from a delta array.
+// Returns "" when all deltas are zero (no harvesters or no elapsed time).
+// Resource names: index 0=blood, 1=flesh, 2=bones.
+func FormatOfflineMsg(delta [3]float64) string {
+	names := [3]string{"blood", "flesh", "bones"}
+	var parts []string
+	for i, d := range delta {
+		if d > 0.001 { // threshold to avoid "+0.0 blood" from float noise
+			parts = append(parts, fmt.Sprintf("+%.1f %s", d, names[i]))
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "While idle: " + strings.Join(parts, ", ")
+}
+
+// WithOfflineMsg sets the offline credit notification fields.
+// msg="" is a no-op. The message auto-dismisses after 5 ticks.
+func WithOfflineMsg(m GameModel, msg string) GameModel {
+	if msg == "" {
+		return m
+	}
+	m.OfflineCreditMsg = msg
+	m.offlineCreditTicks = 5
 	return m
 }
