@@ -37,7 +37,15 @@ func BuildLayout(v GameView) string {
 
 	leftPanel := renderResourcePanel(v, leftW, contentH)
 	centerPanel := renderCreaturePanel(v, centerW, contentH)
-	rightPanel := renderZonePanel(v, rightW, contentH)
+	var rightPanel string
+	switch v.ActiveTab {
+	case TabMutations:
+		rightPanel = renderMutationPanel(v, rightW, contentH)
+	case TabHarvesters:
+		rightPanel = renderHarvesterPanel(v, rightW, contentH)
+	default: // TabZones and any future tabs fall through to zones
+		rightPanel = renderZonePanel(v, rightW, contentH)
+	}
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, centerPanel, rightPanel)
 	tabBar := renderTabBar(v, v.Width)

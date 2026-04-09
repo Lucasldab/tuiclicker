@@ -5,8 +5,9 @@ import "github.com/charmbracelet/lipgloss"
 // 16-color ANSI palette per UI-SPEC. No 256-color, no 24-bit RGB.
 
 var (
-	StylePrimary = lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
-	StyleDim     = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	StylePrimary    = lipgloss.NewStyle().Foreground(lipgloss.Color("7"))
+	StyleDim        = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	StylePurchased  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("2"))
 
 	StyleBlood = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("1"))
 	StyleFlesh = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("9"))
