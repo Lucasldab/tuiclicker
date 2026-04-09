@@ -118,6 +118,14 @@ func (m GameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// FlashZone returns the currently active flash zone (ZoneNone if no flash).
+// Exported for testing only — do not use in production rendering logic.
+func (m GameModel) FlashZone() ZoneType { return m.flashZone }
+
+// TooSmall returns true when the terminal is below the minimum supported size.
+// Exported for testing only.
+func (m GameModel) TooSmall() bool { return m.tooSmall }
+
 // View renders the current game state as a string. It must be a pure function
 // of m — do not mutate m inside View (value receiver enforces this).
 func (m GameModel) View() string {

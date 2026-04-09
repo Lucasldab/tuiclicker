@@ -21,3 +21,6 @@ func doTick() tea.Cmd {
 // clearFlashMsg is sent immediately after a harvest click to clear the
 // flash highlight on the next render, achieving a 1-render visual burst.
 type clearFlashMsg struct{}
+
+// ClearFlashMsg returns a clearFlashMsg for test injection.
+func ClearFlashMsg() tea.Msg { return clearFlashMsg{} }
