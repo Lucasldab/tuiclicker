@@ -2,6 +2,7 @@ package model
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/lucasldab/tuiclicker/internal/ui"
 )
 
 // GameModel is the single source of truth for all game state.
@@ -132,7 +133,40 @@ func (m GameModel) View() string {
 	if m.tooSmall {
 		return "terminal too small (min 60x20)"
 	}
-	return "(building...)" // replaced in Plan 03
+	return ui.BuildLayout(m.toGameView())
+}
+
+// toGameView converts GameModel to the ui.GameView data-transfer type.
+// This adapter prevents the ui package from importing internal/model
+// (which would create a circular import).
+func (m GameModel) toGameView() ui.GameView {
+	return ui.GameView{
+		Width:        m.width,
+		Height:       m.height,
+		ActiveTab:    ui.TabID(m.ActiveTab),
+		FlashZone:    ui.ZoneID(m.flashZone),
+		ZoneUnlocked: m.ZoneUnlocked,
+		Resources: [3]ui.ResourceView{
+			{
+				Label:  "BLOOD",
+				Amount: FormatAmount(m.Ledger.Amounts[ResourceBlood]),
+				Rate:   FormatRate(m.Ledger.Rates[ResourceBlood]),
+				ZoneID: ui.ZoneBlood,
+			},
+			{
+				Label:  "FLESH",
+				Amount: FormatAmount(m.Ledger.Amounts[ResourceFlesh]),
+				Rate:   FormatRate(m.Ledger.Rates[ResourceFlesh]),
+				ZoneID: ui.ZoneFlesh,
+			},
+			{
+				Label:  "BONES",
+				Amount: FormatAmount(m.Ledger.Amounts[ResourceBones]),
+				Rate:   FormatRate(m.Ledger.Rates[ResourceBones]),
+				ZoneID: ui.ZoneBones,
+			},
+		},
+	}
 }
 
 // handleKey processes keyboard input and returns the updated model + Cmd.
